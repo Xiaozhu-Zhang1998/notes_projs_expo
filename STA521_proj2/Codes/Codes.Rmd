@@ -1,0 +1,1292 @@
+---
+title: "Appendix: STA 521 Project 2 (Codes)"
+author: "Xiaozhu Zhang and Xuyang Tian"
+date: "Nov 2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE, fig.align = "center")
+ggplot2::theme_set(ggplot2::theme_bw())
+```
+
+# 1. Data Collection and Exploration
+## 1 (a) Summary
+First we read the data into R.
+```{r}
+library(tidyverse)
+library(patchwork)
+# read data ----
+col_names <- c("y", "x", "label", "NDAI", "SD", "CORR", 
+               "DF", "CF", "BF", "AF", "AN")
+img1 <- read.table("imagem1.txt", header = FALSE, sep = "", dec = ".") %>% tibble()
+img2 <- read.table("imagem2.txt", header = FALSE, sep = "", dec = ".") %>% tibble()
+img3 <- read.table("imagem3.txt", header = FALSE, sep = "", dec = ".") %>% tibble()
+colnames(img1) <- col_names
+colnames(img2) <- col_names
+colnames(img3) <- col_names
+```
+
+## 1 (b) Maps and percentages
+Three maps (Figure 1):
+```{r}
+ggplot(img1, aes(x = x, y = y, color = as.factor(label))) +
+  geom_point() +
+  scale_color_manual(values=c("#E69F00", "#999999", "#56B4E9")) +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       color = "label",
+       title = "img1") +
+  theme_bw()
+
+ggplot(img2, aes(x = x, y = y, color = as.factor(label))) +
+  geom_point() +
+  scale_color_manual(values=c("#E69F00", "#999999", "#56B4E9")) +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       color = "label",
+       title = "img2") +
+  theme_bw()
+
+ggplot(img3, aes(x = x, y = y, color = as.factor(label))) +
+  geom_point() +
+  scale_color_manual(values=c("#E69F00", "#999999", "#56B4E9")) +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       color = "label",
+       title = "img3") +
+  theme_bw()
+```
+
+Percentages (Table 1):
+```{r}
+table(img1$label) / sum(table(img1$label) )
+table(img2$label) / sum(table(img2$label) )
+table(img3$label) / sum(table(img3$label) )
+```
+
+## 1 (c) EDA
+Correlation plot (Figure 2):
+```{r}
+library(ggcorrplot)
+dat <- rbind(img1 %>% mutate(img = "1"), 
+             img2 %>% mutate(img = "2"), 
+             img3 %>% mutate(img = "3"))
+
+corr <- round(dat[, 4:11], 2)
+ggcorrplot(corr, hc.order = FALSE, type = "lower",
+           lab = TRUE) +
+  labs(title = "Correlation in three imgs combined")
+```
+
+Density plots (Figure 3):
+```{r}
+p1 <- dat %>% 
+  filter(label == -1 | label == 1) %>%
+  ggplot(aes(x = NDAI, fill = as.factor(label))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "label")
+
+p2 <- dat %>% 
+  filter(label == -1 | label == 1) %>%
+  ggplot(aes(x = SD, fill = as.factor(label))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "label")
+
+p3 <- dat %>% 
+  filter(label == -1 | label == 1) %>%
+  ggplot(aes(x = CORR, fill = as.factor(label))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "label")
+
+p4 <- dat %>% 
+  filter(label == -1 | label == 1) %>%
+  ggplot(aes(x = DF, fill = as.factor(label))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "label")
+
+p5 <- dat %>% 
+  filter(label == -1 | label == 1) %>%
+  ggplot(aes(x = CF, fill = as.factor(label))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "label")
+
+p6 <- dat %>% 
+  filter(label == -1 | label == 1) %>%
+  ggplot(aes(x = BF, fill = as.factor(label))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "label")
+
+p7 <- dat %>% 
+  filter(label == -1 | label == 1) %>%
+  ggplot(aes(x = AF, fill = as.factor(label))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "label")
+
+p8 <- dat %>% 
+  filter(label == -1 | label == 1) %>%
+  ggplot(aes(x = AN, fill = as.factor(label))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "label")
+
+p1 + p2 + p3 + p4 + p5 + p6 + p7 + p8 + plot_layout(nrow=2) +  
+  plot_annotation(title = "Feature densities of label 1 and -1")
+```
+
+# 2. Preparation
+## 2 (a) Data Splitting
+Type-1 splitting:
+```{r}
+set.seed(1234)
+# Type-1 splitting
+n_nocl <- sum(dat$label == -1)
+n_unlab <- sum(dat$label == 0)
+n_cl <- sum(dat$label == 1)
+
+# for no cloud
+shuffle_nocl <- sample(seq_len(n_nocl), n_nocl)
+train_id <- shuffle_nocl[1:round(n_nocl * 0.4)]
+val_id <- shuffle_nocl[(round(n_nocl * 0.4) + 1) : round(n_nocl * 0.7)]
+test_id <- shuffle_nocl[(round(n_nocl * 0.7) + 1): n_nocl]
+
+dat_nocl <- dat %>% filter(label == -1)
+train_nocl <- dat_nocl[train_id,]
+val_nocl <- dat_nocl[val_id,]
+test_nocl <- dat_nocl[test_id,]  
+
+# for unlabeled
+shuffle_unlab <- sample(seq_len(n_unlab), n_unlab)
+train_id <- shuffle_unlab[1:round(n_unlab * 0.4)]
+val_id <- shuffle_unlab[(round(n_unlab * 0.4) + 1) : round(n_unlab * 0.7)]
+test_id <- shuffle_unlab[(round(n_unlab * 0.7) + 1): n_unlab]
+
+dat_unlab <- dat %>% filter(label == 0)
+train_unlab <- dat_unlab[train_id,]
+val_unlab <- dat_unlab[val_id,]
+test_unlab <- dat_unlab[test_id,]  
+
+# for cloud
+shuffle_cl <- sample(seq_len(n_cl), n_cl)
+train_id <- shuffle_cl[1:round(n_cl * 0.4)]
+val_id <- shuffle_cl[(round(n_cl * 0.4) + 1) : round(n_cl * 0.7)]
+test_id <- shuffle_cl[(round(n_cl * 0.7) + 1): n_cl]
+
+dat_cl <- dat %>% filter(label == 1)
+train_cl <- dat_cl[train_id,]
+val_cl <- dat_cl[val_id,]
+test_cl <- dat_cl[test_id,]  
+
+# combined
+dat_train_1 <- rbind(train_nocl, train_cl)
+dat_val_1 <- rbind(val_nocl, val_cl)
+dat_test_1 <- rbind(test_nocl, test_cl)
+```
+
+Type-2 Splitting (as well as Figure 4):
+```{r}
+# Type-2 splitting (blocks)
+# using kmeans
+set.seed(1234)
+kmeans_1 <- img1 %>%
+  filter(label %in% c(-1, 1)) %>%
+  dplyr::select(x, y) %>%
+  kmeans(centers = 9)
+img1 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_1$cluster)) %>%
+  ggplot(aes(x = x, y = y, color = block)) +
+  geom_point() +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       title = "Blocks for Img1")
+
+set.seed(1235)
+kmeans_2 <- img2 %>%
+  filter(label %in% c(-1, 1)) %>%
+  dplyr::select(x, y) %>%
+  kmeans(centers = 8)
+img2 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_2$cluster)) %>%
+  ggplot(aes(x = x, y = y, color = block)) +
+  geom_point() +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       title = "Blocks for Img2")
+
+set.seed(1236)
+kmeans_3 <- img3 %>%
+  filter(label %in% c(-1, 1)) %>%
+  dplyr::select(x, y) %>%
+  kmeans(centers = 6)
+img3 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_3$cluster)) %>%
+  ggplot(aes(x = x, y = y, color = block)) +
+  geom_point() +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       title = "Blocks for Img3")
+
+dat_train_2 <- bind_rows(
+  img1 %>%
+    filter(label %in% c(-1, 1)) %>%
+    mutate(block = as.factor(kmeans_1$cluster), img = "1") %>%
+    filter(block %in% c(2, 4, 1)),
+  
+  img2 %>%
+    filter(label %in% c(-1, 1)) %>%
+    mutate(block = as.factor(kmeans_2$cluster), img = "2") %>%
+    filter(block %in% c(2, 3, 4, 8)),
+  
+  img3 %>%
+    filter(label %in% c(-1, 1)) %>%
+    mutate(block = as.factor(kmeans_3$cluster), img = "3") %>%
+    filter(block %in% c(4, 5))
+)
+
+dat_val_2 <- bind_rows(
+  img1 %>%
+    filter(label %in% c(-1, 1)) %>%
+    mutate(block = as.factor(kmeans_1$cluster), img = "1") %>%
+    filter(block %in% c(5, 7, 8)),
+  
+  img2 %>%
+    filter(label %in% c(-1, 1)) %>%
+    mutate(block = as.factor(kmeans_2$cluster), img = "2") %>%
+    filter(block %in% c(6, 7)),
+  
+  img3 %>%
+    filter(label %in% c(-1, 1)) %>%
+    mutate(block = as.factor(kmeans_3$cluster), img = "3") %>%
+    filter(block %in% c(2, 6))
+)
+
+dat_test_2 <- bind_rows(
+  img1 %>%
+    filter(label %in% c(-1, 1)) %>%
+    mutate(block = as.factor(kmeans_1$cluster), img = "1") %>%
+    filter(block %in% c(3, 6, 9)),
+  
+  img2 %>%
+    filter(label %in% c(-1, 1)) %>%
+    mutate(block = as.factor(kmeans_2$cluster), img = "2") %>%
+    filter(block %in% c(1, 5)),
+  
+  img3 %>%
+    filter(label %in% c(-1, 1)) %>%
+    mutate(block = as.factor(kmeans_3$cluster), img = "3") %>%
+    filter(block %in% c(1, 3))
+)
+```
+
+## 2 (b) Baseline
+```{r}
+# Type-1 splitting
+mean(dat_val_1$label == -1)
+mean(dat_test_1$label == -1)
+
+# Type-2 splitting
+mean(dat_val_2$label == -1)
+mean(dat_test_2$label == -1)
+```
+
+## 2 (c) First order importance
+Data in Table 2 are generated as follows:
+```{r}
+t_test_dat <- dat %>%
+  filter(label %in% c(-1, 1))
+
+aov(NDAI ~ label, data = t_test_dat) %>% summary()
+aov(SD ~ label, data = t_test_dat) %>% summary()
+aov(CORR ~ label, data = t_test_dat) %>% summary()
+aov(DF ~ label, data = t_test_dat) %>% summary()
+aov(CF ~ label, data = t_test_dat) %>% summary()
+aov(BF ~ label, data = t_test_dat) %>% summary()
+aov(AF ~ label, data = t_test_dat) %>% summary()
+aov(AN ~ label, data = t_test_dat) %>% summary()
+```
+
+## 2 (d) CVMaster
+```{r}
+library(glmnet)
+library(class)
+library(MASS)
+library(e1071)
+features <- c("NDAI", "SD", "CORR", "DF", "CF", "BF", "AF", "AN" )
+label <- "label"
+accuracy <- function(obs, fitted){
+  mean(obs == fitted)
+}
+```
+
+For Type-1 Splitting `CVMaster1`:
+```{r}
+# CV master for Type-1 splitting
+block_nocl <- bind_rows(dat_train_1, dat_val_1) %>%
+  filter(label == -1)
+block_cl <- bind_rows(dat_train_1, dat_val_1) %>%
+  filter(label == 1)
+
+blocks_1 <- list(block_nocl = block_nocl, block_cl = block_cl)
+
+# classifier can choose from LR, KNN, LDA, QDA, NB
+CVmaster_1 <- function(classifier, features, label, K, loss, prob = 1, neighbor = 5){
+  blocks <- blocks_1
+  # create folds
+  folds <- lapply(1:K, function(k){
+    data.frame()
+  })
+  # split labels to folds
+  for(i in 1:2) {
+    block <- blocks[[i]]
+    n <- nrow(block)
+    shuffle <- sample(x = 1:n, size = floor(n * prob))
+    size = floor(length(shuffle) / K)
+    for(k in 1:K) {
+      id <- shuffle[((k-1) * size + 1):(k * size)]
+      folds[[k]] <- rbind(folds[[k]], block[id, ])
+    }
+  }
+  # model
+  rs <- c()
+  for(k in 1:K) {
+    train <- folds[-k] %>% reduce(union)
+    test <- folds[[k]]
+    X_train <- train %>% dplyr::select(features)
+    y_train <- train %>% dplyr::pull(label)
+    X_test <- test %>% dplyr::select(features)
+    y_test <- test %>% dplyr::pull(label)
+    
+    # logistic regression
+    if(classifier == "logi") {
+      y_train[y_train == -1] = 0
+      fit <- glm(label ~ ., data = bind_cols(X_train, label = y_train), 
+                 family = "binomial")
+      resp <- predict(fit, newdata = X_test, type = "response")
+      pred <- ifelse(resp >= 0.5, 1, -1)
+      rs <- c(rs, loss(y_test, pred))
+    } 
+    # knn
+    else if(classifier == "knn") {
+      fit <- knn(X_train, X_test, cl = y_train, k = neighbor)
+      rs <- c(rs, loss(y_test, fit))
+    } 
+    # qda
+    else if(classifier == "qda") {
+      fit <- qda(label ~ ., data = bind_cols(X_train, label = y_train))
+      pred <- predict(fit, newdata = X_test)
+      rs <- c(rs, loss(y_test, pred$class))
+    } 
+    # lda
+    else if(classifier == "lda") {
+      fit <- lda(label ~ ., data = bind_cols(X_train, label = y_train))
+      pred <- predict(fit, newdata = X_test)
+      rs <- c(rs, loss(y_test, pred$class))
+    } 
+    # naive bayes
+    else if(classifier == "nb") {
+      fit <- naiveBayes(label ~ ., data = bind_cols(X_train, label = y_train))
+      pred <- predict(fit, newdata = X_test)
+      rs <- c(rs, loss(y_test, pred))
+    }
+    else {
+      stop("The classifier is not valid!")
+    }
+  }
+  
+  # result
+  return(rs)
+}
+```
+
+For Type-1 Splitting `CVMaster2`:
+```{r}
+# CV master for Type-2 Splitting
+block1 = img1 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_1$cluster)) %>%
+  filter(block %in% c(1))
+
+block2 = img1 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_1$cluster)) %>%
+  filter(block %in% c(2))
+
+block3 = img1 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_1$cluster)) %>%
+  filter(block %in% c(4))
+
+block4 = img2 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_2$cluster)) %>%
+  filter(block %in% c(2))
+
+block5 = img2 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_2$cluster)) %>%
+  filter(block %in% c(3))
+
+block6 = img2 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_2$cluster)) %>%
+  filter(block %in% c(4))
+
+block7 = img2 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_2$cluster)) %>%
+  filter(block %in% c(8))
+
+block8 = img3 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_3$cluster)) %>%
+  filter(block %in% c(4))
+
+block9 = img3 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_3$cluster)) %>%
+  filter(block %in% c(5))
+
+block10 = img1 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_1$cluster)) %>%
+  filter(block %in% c(5))
+
+block11 = img1 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_1$cluster)) %>%
+  filter(block %in% c(7))
+
+block12 = img1 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_1$cluster)) %>%
+  filter(block %in% c(8))
+
+block13 = img2 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_2$cluster)) %>%
+  filter(block %in% c(6))
+
+block14 = img2 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_2$cluster)) %>%
+  filter(block %in% c(7))
+
+block15 = img3 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_3$cluster)) %>%
+  filter(block %in% c(2))
+
+block16 = img3 %>%
+  filter(label %in% c(-1, 1)) %>%
+  mutate(block = as.factor(kmeans_3$cluster)) %>%
+  filter(block %in% c(6))
+
+blocks_2 <- list(block1 = block1, block2 = block2, block3 = block3, block4 = block4,
+                 block5 = block5, block6 = block6, block7 = block7, block8 = block8,
+                 block9 = block9, block10 = block10, block11 = block11, block12 = block12,
+                 block13 = block13, block14 = block14, block15 = block15, block16 = block16)
+
+# classifier can choose from LR, KNN, LDA, QDA, NB
+CVmaster_2 <- function(classifier, features, label, K, loss, prob = 1, neighbor = 5){
+  blocks <- blocks_2
+  # create folds
+  folds <- lapply(1:K, function(k){
+    data.frame()
+  })
+  # split blocks to folds
+  for(i in 1:16) {
+    block <- blocks[[i]]
+    n <- nrow(block)
+    size = floor(n / K * prob)
+    for(k in 1:K) {
+      id <- ((k-1) * size + 1):(k * size)
+      folds[[k]] <- rbind(folds[[k]], block[id, ])
+    }
+  }
+  # model
+  rs <- c()
+  for(k in 1:K) {
+    train <- folds[-k] %>% reduce(union)
+    test <- folds[[k]]
+    X_train <- train %>% dplyr::select(features)
+    y_train <- train %>% dplyr::pull(label)
+    X_test <- test %>% dplyr::select(features)
+    y_test <- test %>% dplyr::pull(label)
+    
+    # logistic regression
+    if(classifier == "logi") {
+      y_train[y_train == -1] = 0
+      fit <- glm(label ~ ., data = bind_cols(X_train, label = y_train), 
+                 family = "binomial")
+      resp <- predict(fit, newdata = X_test, type = "response")
+      pred <- ifelse(resp >= 0.5, 1, -1)
+      rs <- c(rs, loss(y_test, pred))
+    } 
+    # knn
+    else if(classifier == "knn") {
+      fit <- knn(X_train, X_test, cl = y_train, k = neighbor)
+      rs <- c(rs, loss(y_test, fit))
+    } 
+    # qda
+    else if(classifier == "qda") {
+      fit <- qda(label ~ ., data = bind_cols(X_train, label = y_train))
+      pred <- predict(fit, newdata = X_test)
+      rs <- c(rs, loss(y_test, pred$class))
+    } 
+    # lda
+    else if(classifier == "lda") {
+      fit <- lda(label ~ ., data = bind_cols(X_train, label = y_train))
+      pred <- predict(fit, newdata = X_test)
+      rs <- c(rs, loss(y_test, pred$class))
+    } 
+    # naive bayes
+    else if(classifier == "nb") {
+      fit <- naiveBayes(label ~ ., data = bind_cols(X_train, label = y_train))
+      pred <- predict(fit, newdata = X_test)
+      rs <- c(rs, loss(y_test, pred))
+    }
+    else {
+      stop("The classifier is not valid!")
+    }
+  }
+  
+  # result
+  return(rs)
+}
+```
+
+# 3. Modeling
+## 3 (a) Cross validation and test accuracy
+Here we do the 5-fold cross validation and also report accuracy on the test set. Data in Table 3 can be generated as follows. For Type-1 splitting:
+```{r}
+# for Type-1 splitting
+# logistic regression
+set.seed(1234)
+rs <- CVmaster_1(classifier = "logi", features, label = "label", K = 5, loss = accuracy)
+mean(rs)
+fit_test <- bind_rows(dat_train_1, dat_val_1) %>% 
+  dplyr::select(features, label) %>%
+  mutate(label = ifelse(label == 1, 1, 0)) %>%
+  glm(label ~ ., data = ., 
+      family = "binomial")
+pred <- predict(fit_test, newdata = dat_test_1 %>%
+                  dplyr::select(features), type = "response")
+pred <- ifelse(pred > 0.5, 1, -1)
+mean(pred == dat_test_1$label)
+
+# knn
+set.seed(1234)
+rs <- CVmaster_1(classifier = "knn", features, label = "label", K = 5, loss = accuracy)
+mean(rs)
+fit_test <- knn(train = bind_rows(dat_train_1, dat_val_1) %>% dplyr::select(features), 
+                test = dat_test_1 %>% dplyr::select(features), 
+                cl = bind_rows(dat_train_1, dat_val_1) %>% pull(label), k = 5)
+mean(fit_test == dat_test_1$label)
+
+# LDA
+set.seed(1234)
+rs <- CVmaster_1(classifier = "lda", features, label = "label", K = 5, loss = accuracy)
+mean(rs)
+fit_test <- bind_rows(dat_train_1, dat_val_1) %>% 
+  dplyr::select(features, label) %>%
+  lda(label ~ ., data = .)
+pred <- predict(fit_test, newdata = dat_test_1)
+mean(dat_test_1$label == pred$class)
+
+# QDA
+set.seed(1234)
+rs <- CVmaster_1(classifier = "qda", features, label = "label", K = 5, loss = accuracy)
+mean(rs)
+fit_test <- bind_rows(dat_train_1, dat_val_1) %>% 
+  dplyr::select(features, label) %>%
+  qda(label ~ ., data = .)
+pred <- predict(fit_test, newdata = dat_test_1)
+mean(dat_test_1$label == pred$class)
+
+# NB
+set.seed(1234)
+rs <- CVmaster_1(classifier = "nb", features, label = "label", K = 5, loss = accuracy)
+mean(rs)
+fit_test <- bind_rows(dat_train_1, dat_val_1) %>% 
+  dplyr::select(features, label) %>%
+  naiveBayes(label ~ ., data = .)
+pred <- predict(fit_test, newdata = dat_test_1)
+mean(dat_test_1$label == pred)
+```
+
+For Type-2 splitting:
+```{r}
+# for Type-2 splitting
+# logistic regression
+set.seed(1234)
+rs <- CVmaster_2(classifier = "logi", features, label = "label", K = 5, loss = accuracy)
+mean(rs)
+fit_test <- bind_rows(dat_train_2, dat_val_2) %>% 
+  dplyr::select(features, label) %>%
+  mutate(label = ifelse(label == 1, 1, 0)) %>%
+  glm(label ~ ., data = ., 
+      family = "binomial")
+pred <- predict(fit_test, newdata = dat_test_2 %>% dplyr::select(features), 
+                type = "response")
+pred <- ifelse(pred > 0.5, 1, -1)
+mean(pred == dat_test_2$label)
+
+# KNN
+set.seed(1234)
+rs <- CVmaster_2(classifier = "knn", features, label = "label", K = 5, loss = accuracy)
+mean(rs)
+fit_test <- knn(train = bind_rows(dat_train_2, dat_val_2) %>% dplyr::select(features), 
+                test = dat_test_2 %>% dplyr::select(features), 
+                cl = bind_rows(dat_train_2, dat_val_2) %>% pull(label), k = 5)
+mean(fit_test == dat_test_2$label)
+
+# LDA
+set.seed(1234)
+rs <- CVmaster_2(classifier = "lda", features, label = "label", K = 5, loss = accuracy)
+mean(rs)
+fit_test <- bind_rows(dat_train_2, dat_val_2) %>% 
+  dplyr::select(features, label) %>%
+  lda(label ~ ., data = .)
+pred <- predict(fit_test, newdata = dat_test_2)
+mean(dat_test_2$label == pred$class)
+
+# QDA
+set.seed(1234)
+rs <- CVmaster_2(classifier = "qda", features, label = "label", K = 5, loss = accuracy)
+mean(rs)
+fit_test <- bind_rows(dat_train_2, dat_val_2) %>% 
+  dplyr::select(features, label) %>%
+  qda(label ~ ., data = .)
+pred <- predict(fit_test, newdata = dat_test_2)
+mean(dat_test_2$label == pred$class)
+
+# NB
+set.seed(1234)
+rs <- CVmaster_2(classifier = "nb", features, label = "label", K = 5, loss = accuracy)
+mean(rs)
+fit_test <- bind_rows(dat_train_2, dat_val_2) %>% 
+  dplyr::select(features, label) %>%
+  naiveBayes(label ~ ., data = .)
+pred <- predict(fit_test, newdata = dat_test_2)
+mean(dat_test_2$label == pred)
+```
+
+
+## 3 (b) ROC curve
+In order to draw the ROC curve, we need to extract the probabilities of observations for each method. Data in Table 4 can be generated as follows. For Type-1 splitting:
+```{r}
+# for Type-1 splitting
+set.seed(1234)
+fit_test <- bind_rows(dat_train_1, dat_val_1) %>% 
+  dplyr::select(features, label) %>%
+  mutate(label = ifelse(label == 1, 1, 0)) %>%
+  glm(label ~ ., data = ., 
+      family = "binomial")
+prob_logi <- predict(fit_test, newdata = dat_test_1 %>% dplyr::select(features), type = "response")
+
+set.seed(1234)
+fit_test <- knn(train = bind_rows(dat_train_1, dat_val_1) %>% dplyr::select(features), 
+                test = dat_test_1 %>% dplyr::select(features), 
+                cl = bind_rows(dat_train_1, dat_val_1) %>% pull(label), k = 5, prob = TRUE)
+prob_knn <- attributes(fit_test)$prob
+prob_knn[fit_test == -1] <- 1 - prob_knn[fit_test == -1]
+
+set.seed(1234)
+fit_test <- bind_rows(dat_train_1, dat_val_1) %>% 
+  dplyr::select(features, label) %>%
+  lda(label ~ ., data = .)
+prob_lda <- predict(fit_test, newdata = dat_test_1)$posterior[,2]
+
+set.seed(1234)
+fit_test <- bind_rows(dat_train_1, dat_val_1) %>% 
+  dplyr::select(features, label) %>%
+  qda(label ~ ., data = .)
+prob_qda <- predict(fit_test, newdata = dat_test_1)$posterior[,2]
+
+set.seed(1234)
+fit_test <- bind_rows(dat_train_1, dat_val_1) %>% 
+  dplyr::select(features, label) %>%
+  naiveBayes(label ~ ., data = .)
+prob_nb <- predict(fit_test, newdata = dat_test_1, type = "raw")[,2]
+
+tb1 <- tibble(
+  LR = prob_logi,
+  KNN = prob_knn,
+  LDA = prob_lda,
+  QDA = prob_qda,
+  NB = prob_nb,
+  label = dat_test_1$label
+) 
+
+tb2 <- tb1 %>%
+  pivot_longer(cols = c(LR, KNN, LDA, QDA, NB), names_to = "method", values_to = "prob")
+```
+
+The cutoff points are:
+```{r}
+cutoff1 <- tibble(
+  method = c("LR", "KNN", "LDA", "QDA", "NB"),
+  cutoff = c(0.3, 0.35, 0.3, 0.02, 0.015),
+  x = c(0.135715, 0.07417899,  0.1241737, 0.1142325, 0.1243574),
+  y = c(0.9420845, 0.9503993, 0.9331934, 0.9639006, 0.9505639)
+)
+```
+
+The ROC curve (Figure 5 up) is:
+```{r}
+library(plotROC)
+p <- ggplot(data = tb2 %>% left_join(cutoff1, by = "method"), 
+       aes(d = label, m = prob, color = method)) + 
+  geom_roc(labels = FALSE, n.cuts = 0) +
+  geom_point(aes(x = x, y = y)) +
+  facet_grid(cols = vars(method)) +
+  style_roc() +
+  labs(title = "ROC curve for type-1 data split") +
+  theme(axis.text.x = element_text(angle = 30))
+```
+
+For Type-2 splitting:
+```{r}
+# for Type-2 splitting
+set.seed(1234)
+fit_test <- bind_rows(dat_train_2, dat_val_2) %>% 
+  dplyr::select(features, label) %>%
+  mutate(label = ifelse(label == 1, 1, 0)) %>%
+  glm(label ~ ., data = ., 
+      family = "binomial")
+prob_logi <- predict(fit_test, newdata = dat_test_2 %>% dplyr::select(features), type = "response")
+
+set.seed(1234)
+fit_test <- knn(train = bind_rows(dat_train_2, dat_val_2) %>% dplyr::select(features), 
+                test = dat_test_2 %>% dplyr::select(features), 
+                cl = bind_rows(dat_train_2, dat_val_2) %>% pull(label), k = 5, prob = TRUE)
+prob_knn <- attributes(fit_test)$prob
+prob_knn[fit_test == -1] <- 1 - prob_knn[fit_test == -1]
+
+set.seed(1234)
+fit_test <- bind_rows(dat_train_2, dat_val_2) %>% 
+  dplyr::select(features, label) %>%
+  lda(label ~ ., data = .)
+prob_lda <- predict(fit_test, newdata = dat_test_2)$posterior[,2]
+
+set.seed(1234)
+fit_test <- bind_rows(dat_train_2, dat_val_2) %>% 
+  dplyr::select(features, label) %>%
+  qda(label ~ ., data = .)
+prob_qda <- predict(fit_test, newdata = dat_test_2)$posterior[,2]
+
+set.seed(1234)
+fit_test <- bind_rows(dat_train_2, dat_val_2) %>% 
+  dplyr::select(features, label) %>%
+  naiveBayes(label ~ ., data = .)
+prob_nb <- predict(fit_test, newdata = dat_test_2, type = "raw")[,2]
+
+tb3 <- tibble(
+  LR = prob_logi,
+  KNN = prob_knn,
+  LDA = prob_lda,
+  QDA = prob_qda,
+  NB = prob_nb,
+  label = dat_test_2$label
+) 
+  
+tb4 <- tb3 %>% pivot_longer(cols = c(LR, KNN, LDA, QDA, NB), names_to = "method", values_to = "prob")
+```
+
+The cutoff points are:
+```{r}
+cutoff2 <- tibble(
+  method = c("LR", "KNN", "LDA", "QDA", "NB"),
+  cutoff = c(0.4, 0.4, 0.45, 0.1, 0.005),
+  x = c(0.1454364, 0.2395326, 0.1369074, 0.1284615, 0.201235),
+  y = c(0.9542662, 0.8178484, 0.9501912, 0.9600652, 0.9931979)
+)
+```
+
+The ROC curve is (Figure 5 bottom):
+```{r}
+library(plotROC)
+p <- ggplot(data = tb4 %>% left_join(cutoff2, by = "method"), 
+       aes(d = label, m = prob, color = method)) + 
+  geom_roc(labels = FALSE, n.cuts = 0) +
+  geom_point(aes(x = x, y = y)) +
+  facet_grid(cols = vars(method)) +
+  style_roc() +
+  labs(title = "ROC curve for type-2 data split") +
+  theme(axis.text.x = element_text(angle = 30))
+```
+
+## 3 (c) Other metrics
+First we define the `f_score` function:
+```{r}
+f_score <- function(recall, precision) {
+  1 / ((1 / recall + 1 / precision) / 2)
+}
+```
+
+Then data in Table 5 can be generated as follows. For Type-1 splitting:
+```{r}
+# for Type-1 splitting
+# for LR
+pred <- ifelse(tb1$LR > cutoff1 %>% filter(method == "LR") %>% pull(cutoff), 1, -1)
+tab <- table(pred, tb1 %>% pull(label))
+tab[2,2] / (tab[1,2] + tab[2,2]) # recall
+tab[2,2] / (tab[2,1] + tab[2,2]) # precision
+f_score(tab[2,2] / (tab[1,2] + tab[2,2]), tab[2,2] / (tab[2,1] + tab[2,2]))
+
+# for KNN
+pred <- ifelse(tb1$KNN > cutoff1 %>% filter(method == "KNN") %>% pull(cutoff), 1, -1)
+tab <- table(pred, tb1 %>% pull(label))
+tab[2,2] / (tab[1,2] + tab[2,2]) # recall
+tab[2,2] / (tab[2,1] + tab[2,2]) # precision
+f_score(tab[2,2] / (tab[1,2] + tab[2,2]), tab[2,2] / (tab[2,1] + tab[2,2]))
+
+# for LDA
+pred <- ifelse(tb1$LDA > cutoff1 %>% filter(method == "LDA") %>% pull(cutoff), 1, -1)
+tab <- table(pred, tb1 %>% pull(label))
+tab[2,2] / (tab[1,2] + tab[2,2]) # recall
+tab[2,2] / (tab[2,1] + tab[2,2]) # precision
+f_score(tab[2,2] / (tab[1,2] + tab[2,2]), tab[2,2] / (tab[2,1] + tab[2,2]))
+
+
+# for QDA
+pred <- ifelse(tb1$QDA > cutoff1 %>% filter(method == "QDA") %>% pull(cutoff), 1, -1)
+tab <- table(pred, tb1 %>% pull(label))
+tab[2,2] / (tab[1,2] + tab[2,2]) # recall
+tab[2,2] / (tab[2,1] + tab[2,2]) # precision
+f_score(tab[2,2] / (tab[1,2] + tab[2,2]), tab[2,2] / (tab[2,1] + tab[2,2]))
+
+
+# for NB
+pred <- ifelse(tb1$NB > cutoff1 %>% filter(method == "NB") %>% pull(cutoff), 1, -1)
+tab <- table(pred, tb1 %>% pull(label))
+tab[2,2] / (tab[1,2] + tab[2,2]) # recall
+tab[2,2] / (tab[2,1] + tab[2,2]) # precision
+f_score(tab[2,2] / (tab[1,2] + tab[2,2]), tab[2,2] / (tab[2,1] + tab[2,2]))
+```
+
+For Type-2 splitting:
+```{r}
+# for Type-2 splitting
+# for LR
+pred <- ifelse(tb3$LR > cutoff2 %>% filter(method == "LR") %>% pull(cutoff), 1, -1)
+tab <- table(pred, tb3 %>% pull(label))
+tab[2,2] / (tab[1,2] + tab[2,2]) # recall
+tab[2,2] / (tab[2,1] + tab[2,2]) # precision
+f_score(tab[2,2] / (tab[1,2] + tab[2,2]), tab[2,2] / (tab[2,1] + tab[2,2]))
+
+# for KNN
+pred <- ifelse(tb3$KNN > cutoff2 %>% filter(method == "KNN") %>% pull(cutoff), 1, -1)
+tab <- table(pred, tb3 %>% pull(label))
+tab[2,2] / (tab[1,2] + tab[2,2]) # recall
+tab[2,2] / (tab[2,1] + tab[2,2]) # precision
+f_score(tab[2,2] / (tab[1,2] + tab[2,2]), tab[2,2] / (tab[2,1] + tab[2,2]))
+
+# for LDA
+pred <- ifelse(tb3$LDA > cutoff2 %>% filter(method == "LDA") %>% pull(cutoff), 1, -1)
+tab <- table(pred, tb3 %>% pull(label))
+tab[2,2] / (tab[1,2] + tab[2,2]) # recall
+tab[2,2] / (tab[2,1] + tab[2,2]) # precision
+f_score(tab[2,2] / (tab[1,2] + tab[2,2]), tab[2,2] / (tab[2,1] + tab[2,2]))
+
+# for QDA
+pred <- ifelse(tb3$QDA > cutoff2 %>% filter(method == "QDA") %>% pull(cutoff), 1, -1)
+tab <- table(pred, tb3 %>% pull(label))
+tab[2,2] / (tab[1,2] + tab[2,2]) # recall
+tab[2,2] / (tab[2,1] + tab[2,2]) # precision
+f_score(tab[2,2] / (tab[1,2] + tab[2,2]), tab[2,2] / (tab[2,1] + tab[2,2]))
+
+# for NB
+pred <- ifelse(tb3$NB > cutoff2 %>% filter(method == "NB") %>% pull(cutoff), 1, -1)
+tab <- table(pred, tb3 %>% pull(label))
+tab[2,2] / (tab[1,2] + tab[2,2]) # recall
+tab[2,2] / (tab[2,1] + tab[2,2]) # precision
+f_score(tab[2,2] / (tab[1,2] + tab[2,2]), tab[2,2] / (tab[2,1] + tab[2,2]))
+```
+
+# 4. Diagnostics
+## 4 (a) In depth analysis
+**Direction 1**: to explore the convergence property of LDA and QDA in terms of accuracy when we vary the proportion of sample size that go in to the training set. For Type-1 splitting:
+```{r}
+# for Type-1 splitting
+set.seed(1234)
+dat_fit_1 <- bind_rows(dat_train_1, dat_val_1) %>% dplyr::select(features, label)
+rs1_lda <- sapply(seq(from = 0.1, to = 1, by = 0.1), function(p) {
+  n1 <- nrow(dat_fit_1)
+  id1 <- sample(1:n1, size = floor(p * n1))
+  fit_test <- lda(label ~ ., data = dat_fit_1[id1, ])
+  pred <- predict(fit_test, newdata = dat_test_1)
+  return(mean(dat_test_1$label == pred$class))
+})
+
+set.seed(1234)
+dat_fit_1 <- bind_rows(dat_train_1, dat_val_1) %>% dplyr::select(features, label)
+rs1_qda <- sapply(seq(from = 0.1, to = 1, by = 0.1), function(p) {
+  n1 <- nrow(dat_fit_1)
+  id1 <- sample(1:n1, size = floor(p * n1))
+  fit_test <- qda(label ~ ., data = dat_fit_1[id1, ])
+  pred <- predict(fit_test, newdata = dat_test_1)
+  return(mean(dat_test_1$label == pred$class))
+})
+```
+
+For Type-2 splitting:
+```{r}
+# for Type-2 splitting
+set.seed(1234)
+dat_fit_2 <- bind_rows(dat_train_2, dat_val_2) %>% dplyr::select(features, label)
+rs2_lda <- sapply(seq(from = 0.1, to = 1, by = 0.1), function(p) {
+  n1 <- nrow(dat_fit_2)
+  id1 <- sample(1:n1, size = floor(p * n1))
+  fit_test <- lda(label ~ ., data = dat_fit_2[id1, ])
+  pred <- predict(fit_test, newdata = dat_test_2)
+  return(mean(dat_test_2$label == pred$class))
+})
+
+set.seed(1234)
+dat_fit_2 <- bind_rows(dat_train_2, dat_val_2) %>% dplyr::select(features, label)
+rs2_qda <- sapply(seq(from = 0.1, to = 1, by = 0.1), function(p) {
+  n1 <- nrow(dat_fit_2)
+  id1 <- sample(1:n1, size = floor(p * n1))
+  fit_test <- qda(label ~ ., data = dat_fit_2[id1, ])
+  pred <- predict(fit_test, newdata = dat_test_2)
+  return(mean(dat_test_2$label == pred$class))
+})
+```
+
+Draw the plot (Figure 6 left):
+```{r}
+tb5 <- tibble(`Type1 LDA` = rs1_lda, `Type2 LDA` = rs2_lda,
+              `Type1 QDA` = rs1_qda, `Type2 QDA` = rs2_qda,
+              size = seq(from = 0.1, to = 1, by = 0.1) * 100) %>%
+  pivot_longer(cols = c(`Type1 LDA`, `Type2 LDA`,
+                        `Type1 QDA`, `Type2 QDA`), 
+               names_to = "type", values_to = "accuracy") 
+ggplot(tb5, aes(x = size, y = accuracy, color = type)) +
+  geom_point() +
+  geom_line() +
+  ylim(0.875, 0.92) +
+  labs(x = "Proportion of sample size (%)", 
+       y = "Accuracy",
+       color = "Split and model type",
+       title = "Accuracy v.s. training set size") +
+  theme_bw()
+```
+
+**Direction 2**: to examine the robustness of LDA and QDA by adding perturbations to original dataset. For Type-1 splitting:
+```{r}
+# for Type-1 splitting
+set.seed(1234)
+Var <- dat_fit_1 %>% dplyr::select(features) %>% apply(2, var)
+rs1_lda <- sapply(seq(from = 0.2, to = 6, by = 0.2), function(p) {
+  # perturb the training
+  Noise1 <- sapply(1:8, function(i){
+    rnorm(nrow(dat_fit_1), mean = 0, sd = sqrt(p * Var[i]))
+  }) %>%
+    matrix(nrow = nrow(dat_fit_1), ncol = 8)
+  dat_fit <- dat_fit_1 %>% dplyr::select(features) + Noise1
+  dat_fit <- dat_fit %>% tibble() %>% mutate(label = dat_fit_1$label)
+  # perturb the test
+  Noise2 <- sapply(1:8, function(i){
+    rnorm(nrow(dat_test_1), mean = 0, sd = sqrt(p * Var[i]))
+  })
+  dat_test <- dat_test_1 %>% dplyr::select(features) + Noise2
+  dat_test <- dat_test %>% tibble() %>% mutate(label = dat_test_1$label)
+  # fit
+  fit_test <- lda(label ~ ., data = dat_fit)
+  pred <- predict(fit_test, newdata = dat_test)
+  return(mean(pred$class == dat_test$label))
+})
+
+set.seed(1234)
+rs1_qda <- sapply(seq(from = 0.2, to = 6, by = 0.2), function(p) {
+  # perturb the training
+  Noise1 <- sapply(1:8, function(i){
+    rnorm(nrow(dat_fit_1), mean = 0, sd = sqrt(p * Var[i]))
+  }) %>%
+    matrix(nrow = nrow(dat_fit_1), ncol = 8)
+  dat_fit <- dat_fit_1 %>% dplyr::select(features) + Noise1
+  dat_fit <- dat_fit %>% tibble() %>% mutate(label = dat_fit_1$label)
+  # perturb the test
+  Noise2 <- sapply(1:8, function(i){
+    rnorm(nrow(dat_test_1), mean = 0, sd = sqrt(p * Var[i]))
+  })
+  dat_test <- dat_test_1 %>% dplyr::select(features) + Noise2
+  dat_test <- dat_test %>% tibble() %>% mutate(label = dat_test_1$label)
+  # fit
+  fit_test <- qda(label ~ ., data = dat_fit)
+  pred <- predict(fit_test, newdata = dat_test)
+  return(mean(pred$class == dat_test$label))
+})
+```
+
+For Type-2 splitting:
+```{r}
+# for Type-2 splitting
+set.seed(1234)
+Var <- dat_fit_2 %>% dplyr::select(features) %>% apply(2, var)
+rs2_lda <- sapply(seq(from = 0.2, to = 6, by = 0.2), function(p) {
+  # perturb the training
+  Noise1 <- sapply(1:8, function(i){
+    rnorm(nrow(dat_fit_2), mean = 0, sd = sqrt(p * Var[i]))
+  }) %>%
+    matrix(nrow = nrow(dat_fit_2), ncol = 8)
+  dat_fit <- dat_fit_2 %>% dplyr::select(features) + Noise1
+  dat_fit <- dat_fit %>% tibble() %>% mutate(label = dat_fit_2$label)
+  # perturb the test
+  Noise2 <- sapply(1:8, function(i){
+    rnorm(nrow(dat_test_2), mean = 0, sd = sqrt(p * Var[i]))
+  })
+  dat_test <- dat_test_2 %>% dplyr::select(features) + Noise2
+  dat_test <- dat_test %>% tibble() %>% mutate(label = dat_test_2$label)
+  # fit
+  fit_test <- lda(label ~ ., data = dat_fit)
+  pred <- predict(fit_test, newdata = dat_test)
+  return(mean(pred$class == dat_test$label))
+})
+
+set.seed(1234)
+Var <- dat_fit_2 %>% dplyr::select(features) %>% apply(2, var)
+rs2_qda <- sapply(seq(from = 0.2, to = 6, by = 0.2), function(p) {
+  # perturb the training
+  Noise1 <- sapply(1:8, function(i){
+    rnorm(nrow(dat_fit_2), mean = 0, sd = sqrt(p * Var[i]))
+  }) %>%
+    matrix(nrow = nrow(dat_fit_2), ncol = 8)
+  dat_fit <- dat_fit_2 %>% dplyr::select(features) + Noise1
+  dat_fit <- dat_fit %>% tibble() %>% mutate(label = dat_fit_2$label)
+  # perturb the test
+  Noise2 <- sapply(1:8, function(i){
+    rnorm(nrow(dat_test_2), mean = 0, sd = sqrt(p * Var[i]))
+  })
+  dat_test <- dat_test_2 %>% dplyr::select(features) + Noise2
+  dat_test <- dat_test %>% tibble() %>% mutate(label = dat_test_2$label)
+  # fit
+  fit_test <- qda(label ~ ., data = dat_fit)
+  pred <- predict(fit_test, newdata = dat_test)
+  return(mean(pred$class == dat_test$label))
+})
+```
+
+Draw the plot (Figure 6 right):
+```{r}
+tb6 <- tibble(`Type1 LDA` = rs1_lda, `Type2 LDA` = rs2_lda,
+              `Type1 QDA` = rs1_qda, `Type2 QDA` = rs2_qda,
+              size = seq(from = 0.2, to = 6, by = 0.2)) %>%
+  pivot_longer(cols = c(`Type1 LDA`, `Type2 LDA`,
+                        `Type1 QDA`, `Type2 QDA`), 
+               names_to = "type", values_to = "accuracy") 
+ggplot(tb6, aes(x = size, y = accuracy, color = type)) +
+  geom_point() +
+  geom_line() +
+  ylim(0.7, 0.9) +
+  labs(x = "Ratio of extra noise to original variance", 
+       y = "Accuracy",
+       color = "Split and model type",
+       title = "Accuracy v.s. perturbation") +
+  theme_bw()
+```
+
+## 4 (b) Misclassification pattern
+For Type-1 splitting (as well as Figure 7 up):
+```{r}
+# for data Type-1 splitting
+dat_fit_3 <- bind_rows(dat_val_1, dat_test_1) 
+fit1 <- lda(label ~ ., data = dat_train_1 %>% dplyr::select(features, label))
+pred <- predict(fit1, newdata = dat_fit_3)
+dat_fit_3 <- dat_fit_3 %>% mutate(pred = pred$class,
+                                  match = pred == label)
+# for img1
+ggplot(dat_fit_3 %>% filter(img == 1), 
+       aes(x = x, y = y, color = match)) +
+  geom_point() +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       title = "img1") +
+  theme_bw()
+# for img2
+ggplot(dat_fit_3 %>% filter(img == 2), 
+       aes(x = x, y = y, color = match)) +
+  geom_point() +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       title = "img2") +
+  theme_bw()
+# for img3
+ggplot(dat_fit_3 %>% filter(img == 3), 
+       aes(x = x, y = y, color = match)) +
+  geom_point() +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       title = "img3") +
+  theme_bw()
+# test accuracy
+mean(dat_fit_3$match)
+```
+
+For Type-2 splitting (as well as Figure 7 bottom):
+```{r}
+# for data Type-2 splitting
+dat_fit_4 <- bind_rows(dat_val_2, dat_test_2)
+fit2 <- lda(label ~ ., data = dat_train_2 %>% dplyr::select(features, label))
+pred <- predict(fit2, newdata = dat_fit_4)
+dat_fit_4 <- dat_fit_4 %>% mutate(pred = pred$class,
+                                  match = pred == label)
+# for img1
+ggplot(dat_fit_4 %>% filter(img == 1), 
+       aes(x = x, y = y, color = match)) +
+  geom_point() +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       title = "img1") +
+  theme_bw()
+# for img2
+ggplot(dat_fit_4 %>% filter(img == 2), 
+       aes(x = x, y = y, color = match)) +
+  geom_point() +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       title = "img2") +
+  theme_bw()
+# for img3
+ggplot(dat_fit_4 %>% filter(img == 3), 
+       aes(x = x, y = y, color = match)) +
+  geom_point() +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       title = "img3") +
+  theme_bw()
+# test accuracy
+mean(dat_fit_4$match)
+```
+
+EDA again for Type-2 splitting (Figure 8):
+```{r}
+p1 <- dat_fit_4 %>%
+  ggplot(aes(x = NDAI, fill = as.factor(match))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "Match")
+
+p2 <- dat_fit_4 %>%
+  ggplot(aes(x = SD, fill = as.factor(match))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "Match")
+
+p3 <- dat_fit_4 %>% 
+  ggplot(aes(x = CORR, fill = as.factor(match))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "Match")
+
+p4 <- dat_fit_4 %>% 
+  ggplot(aes(x = DF, fill = as.factor(match))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "Match")
+
+p5 <- dat_fit_4 %>% 
+  ggplot(aes(x = CF, fill = as.factor(match))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "Match")
+
+p6 <- dat_fit_4 %>% 
+  ggplot(aes(x = BF, fill = as.factor(match))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "Match")
+
+p7 <- dat_fit_4 %>% 
+  ggplot(aes(x = AF, fill = as.factor(match))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "Match")
+
+p8 <- dat_fit_4 %>% 
+  ggplot(aes(x = AN, fill = as.factor(match))) +
+  geom_density(alpha = 0.5, color = NA) + 
+  labs(fill = "Match")
+
+p1 + p2 + p3 + p4 + p5 + p6 + p7 + p8 + plot_layout(nrow=2) +
+  plot_annotation(title = "Feature densities of correct and incorrect classification")
+```
+
+## 4 (c) A better classifier
+Cross validation for boosting (as well as Figure 9 left):
+```{r}
+# choose xgboost
+library(lightgbm)
+# cross validation
+nrounds <- c(10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
+thres <- seq(0.4, 0.6, by = 0.02)
+A <- c()
+B <- c()
+Accr <- c()
+for(i in seq_along(nrounds)) {
+  for(j in seq_along(thres)) {
+    fit_gbm = lightgbm(data = as.matrix(dat_train_2[, 4:11]), label = dat_train_2$label,
+                       obj = "binary", nrounds = nrounds[i])
+    pred_gbm <- predict(fit_gbm, data = as.matrix(dat_val_2[, 4:11]))
+    pred_gbm <- ifelse(pred_gbm > thres[j], 1, -1)
+    accr <- mean(pred_gbm == dat_val_2$label)
+    A <- c(A, nrounds[i])
+    B <- c(B, thres[j])
+    Accr <- c(Accr, accr)
+  }
+}
+
+tb7 <- tibble(nrounds = A, thres = B, accuracy = Accr)
+ggplot(tb7, aes(x = nrounds, y = thres, fill = accuracy)) +
+  geom_tile() +
+  scale_fill_distiller(palette = "RdPu") +
+  labs(x = "Number of rounds",
+       y = "Threshold",
+       fill = "Accuracy",
+       title = "Parameters tuning grid")
+
+tb7 %>% filter(accuracy == max(accuracy))
+# 40 0.56
+```
+
+Fit a boosting algorithm on the training data using the best selected parameters (as well as Figure 9 middle):
+```{r}
+# fit for all
+fit_gbm = lightgbm(data = as.matrix(dat_train_2[, 4:11]), label = dat_train_2$label,
+                   obj = "binary", nrounds = 40)
+pred_gbm <- predict(fit_gbm, data = as.matrix(dat_fit_4[, 4:11]))
+pred_gbm <- ifelse(pred_gbm > 0.56, 1, -1)
+dat_fit_4 <- dat_fit_4 %>% mutate(pred = pred_gbm,
+                                        match = pred == label)
+
+# importance
+imp <- lgb.importance(fit_gbm, percentage = TRUE)
+lgb.plot.importance(imp, left_margin = 4, measure = "Cover")
+```
+
+Find the misclassification patterns again (as well as Figure 9 right):
+```{r}
+# for img1
+ggplot(dat_fit_4 %>% filter(img == 1), 
+       aes(x = x, y = y, color = match)) +
+  geom_point() +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       title = "img1") +
+  theme_bw()
+# for img2
+ggplot(dat_fit_4 %>% filter(img == 2), 
+       aes(x = x, y = y, color = match)) +
+  geom_point() +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       title = "img2") +
+  theme_bw()
+# for img3
+ggplot(dat_fit_4 %>% filter(img == 3), 
+       aes(x = x, y = y, color = match)) +
+  geom_point() +
+  labs(x = "x coordinate",
+       y = "y coordinate",
+       title = "img3") +
+  theme_bw()
+mean(dat_fit_4$match)
+```
+
+
